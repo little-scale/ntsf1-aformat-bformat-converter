@@ -1,0 +1,11 @@
+{
+  "channels": 2,
+  "sample_rate": 44100,
+  "frames": 88712,
+  "finite": true,
+  "peak": 0.5655588507652283,
+  "left_right_differ": true,
+  "yaw_degrees": 90,
+  "monitor_level": 0,
+  "monitor_level_does_not_mute_export": true
+}
