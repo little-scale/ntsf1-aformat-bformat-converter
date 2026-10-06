@@ -11,7 +11,7 @@ Download [`index.html`](https://github.com/little-scale/ntsf1-aformat-bformat-co
 3. Choose AmbiX or FuMa, output level and output file layout, then **Convert**.
 4. Download the B-format WAVs individually or as a batch ZIP.
 
-After converting, inspect directional energy on the sphere and scrub its timeline. Drag the sphere for yaw/pitch and the outer ring for roll, or enter angles numerically. Headphone playback follows these rotations live. Convert again to update B-format downloads, or use **Export binaural stereo WAV** for a stereo headphone render of the current settings.
+After converting, inspect directional energy on the sphere and use the headphone playback slider to move through the recording. Drag the sphere for yaw/pitch and the outer ring for roll, or enter angles numerically. Headphone playback follows these rotations live, while the sphere’s energy display follows playback and seeking. Convert again to update B-format downloads, or use **Export binaural stereo WAV** for a stereo headphone render of the current settings.
 
 ## Features
 
@@ -34,6 +34,7 @@ node tests/rotation.cjs
 node tests/layouts.cjs
 node tests/meter.cjs
 node tests/zip.cjs
+node tests/playback_sync.cjs
 ```
 
 The checked-in WebAssembly binary makes HTML rebuilding possible without Emscripten. To rebuild the DSP too, run `sh tools/build_wasm.sh` with Emscripten installed, then rebuild the HTML.

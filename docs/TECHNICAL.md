@@ -213,6 +213,8 @@ For current field rotation R, the display evaluates the original covariance at `
 
 The surface shows the front hemisphere; other directions rotate into view. Brightness does not compare absolute energy between windows. First-order patterns are broad and cannot precisely separate individual sources. Covariance precedes output gain/clamp and reflects the microphone configuration of its conversion.
 
+During headphone playback, the sphere follows the AudioContext playback clock and the selected headphone recording. The visualization updates every 100 ms and interpolates covariance matrices between stored windows. Pause freezes the current position, seeking updates both displays, and Stop or natural completion resets them. This interpolates visual energy data only and does not modify the audio or increase its spatial resolution.
+
 Sphere drag controls yaw/pitch; the outer ring controls roll. Numeric angles and Reset enable repeatable values. Texture and grid share a coordinate transform to remain centered.
 
 ## Binaural playback and export
@@ -258,6 +260,7 @@ Tests use Node.js with synthetic audio:
 | `layouts.cjs` | All three input/output layouts recombine to identical payloads |
 | `meter.cjs` | 997 Hz, −20 dBFS sine loudness/range/estimated peak at 44.1 and 48 kHz |
 | `zip.cjs` | WAV metadata, ZIP structure and exact stored payload |
+| `playback_sync.cjs` | Playback-clock synchronization, recording selection, fractional windows, pause/seek/resume/stop and bounds |
 
 Browser validation converted and monitored a two-second recording with external network connections disabled, then downloaded a yaw +90° binaural render. It contained 88,712 stereo frames at 44.1 kHz, including the 512-frame tail, finite samples, distinct ears and approximately −5.0 dBFS peak. Monitor level zero did not mute the export. Scalar results are in `binaural_validation.json`.
 

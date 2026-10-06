@@ -22,7 +22,7 @@ function validation(g){
 function ready(g){return validation(g)==='ready';}
 function controls(){
  const busy=!!activeJob;
- document.querySelectorAll('.settings input,.settings select,.settings button,.microphone input,.microphone select,.microphone button,.modes button').forEach(e=>e.disabled=busy);
+ document.querySelectorAll('.output-settings input,.output-settings select,.output-settings button,.output-rotation input,.output-rotation select,.output-rotation button,.microphone input,.microphone select,.microphone button,.modes button').forEach(e=>e.disabled=busy);
  $('#drop-zone').setAttribute('aria-disabled',String(busy));$('#clear').disabled=busy||!groups.length;
  const n=groups.filter(ready).length;
  $('#convert').disabled=busy||uploads>0||n===0||!connected;$('#convert').textContent=busy?'Converting…':`Convert${n?' '+n+(n===1?' recording':' recordings'):''}`;
