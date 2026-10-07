@@ -73,8 +73,16 @@ async function convertRecording(e,recording,settings,jobid){
  const nc=settings.output_layout==='mono'?1:settings.output_layout==='stereo'?2:4;
  const parts=Array.from({length:4/nc},()=>[makeHeader(nc,rate,frames)]);const gain=Math.fround(10**(settings.gain_db/20));let pos=0,written=0,first=true,lastProgress=-1;
  const previewParts=[makeHeader(4,rate,frames)];
+ const frequencyResult=e.malloc(128*8);if(!frequencyResult)throw Error("Frequency preview allocation failed");
+ const frequencyWindows=[],frequencySum=new Float64Array(128);let frameFrequency=null;
  const spatial=[],binFrames=Math.max(Math.round(rate*.5),Math.ceil(frames/2000));let bin=new Float64Array(16),binCount=0;
- function spatialPush(audio,n){for(let k=0;k<n;k++){let i=k*4;const v=ambix?[audio[i],audio[i+3],audio[i+1],audio[i+2]]:[audio[i]*Math.SQRT2,audio[i+1],audio[i+2],audio[i+3]];for(let a=0;a<4;a++)for(let b=0;b<4;b++)bin[a*4+b]+=v[a]*v[b];if(++binCount===binFrames){spatial.push(Array.from(bin,x=>x/binCount));bin.fill(0);binCount=0;}}}
+ function spatialPush(audio,n){
+  for(let pos=0;pos<n;){const count=Math.min(n-pos,binFrames-binCount);
+   for(let k=pos;k<pos+count;k++){const i=k*4,v=ambix?[audio[i],audio[i+3],audio[i+1],audio[i+2]]:[audio[i]*Math.SQRT2,audio[i+1],audio[i+2],audio[i+3]];for(let a=0;a<4;a++)for(let b=0;b<4;b++)bin[a*4+b]+=v[a]*v[b];}
+   for(let i=0;i<128;i++)frequencySum[i]+=frameFrequency[i]*count;binCount+=count;pos+=count;
+   if(binCount===binFrames){spatial.push(Array.from(bin,x=>x/binCount));frequencyWindows.push(Array.from(frequencySum,x=>x/binCount));bin.fill(0);frequencySum.fill(0);binCount=0;}
+  }
+ }
 
  const update=(progress,stage='Converting')=>{if(progress-lastProgress>=.005||progress===1){lastProgress=progress;postMessage({type:'progress',jobid,file_id:recording.file_id,progress,stage});}};
  try{
@@ -85,6 +93,7 @@ async function convertRecording(e,recording,settings,jobid){
    pos+=count;e.rode_process(state,input,output,ambix?1:0);
    if(first){first=false;continue;}
    const emit=Math.min(hop,frames-written);let audio=new Float32Array(e.memory.buffer,output,hop*4);
+   e.rode_frequency_covariance(state,rate,ambix?1:0,frequencyResult);frameFrequency=new Float64Array(e.memory.buffer,frequencyResult,128);
    spatialPush(audio,emit);
    const previewChunk=audio.slice(0,emit*4);
    if(!ambix)for(let k=0;k<emit;k++){const i=k*4,w=previewChunk[i],x=previewChunk[i+1],y=previewChunk[i+2],z=previewChunk[i+3];previewChunk[i]=w*Math.SQRT2;previewChunk[i+1]=y;previewChunk[i+2]=z;previewChunk[i+3]=x;}
@@ -98,10 +107,10 @@ async function convertRecording(e,recording,settings,jobid){
   }
   update(.97,'Analyzing');e.stats_get(stats,statsResult);e.meter_finish(meter,meterResult);
   const values=Array.from(new Float64Array(e.memory.buffer,statsResult,37)),loudness=Array.from(new Float64Array(e.memory.buffer,meterResult,5));
-  const analysis=reportStats(values,loudness,{...meta,name:recording.name},format,settings);if(binCount)spatial.push(Array.from(bin,x=>x/binCount));analysis.spatial_preview={seconds_per_bin:binFrames/rate,covariance:spatial,note:'Pre-output-rotation directional cardioid energy; normalized per window. Front hemisphere only. Before output gain and clamp.'};const labels=analysis.channel_labels;const stem=safeStem(recording.name);
+  const analysis=reportStats(values,loudness,{...meta,name:recording.name},format,settings);if(binCount){spatial.push(Array.from(bin,x=>x/binCount));frequencyWindows.push(Array.from(frequencySum,x=>x/binCount));}analysis.spatial_preview={seconds_per_bin:binFrames/rate,covariance:spatial,frequency_covariance:frequencyWindows,frequency_bands:Array.from({length:8},(_,i)=>20*(Math.min(20000,rate/2)/20)**((i+.5)/8)),note:'Pre-output-rotation directional cardioid energy; normalized per window. Front hemisphere only. Before output gain and clamp.'};const labels=analysis.channel_labels;const stem=safeStem(recording.name);
   const downloads=parts.map((chunks,index)=>{const components=labels.slice(index*nc,(index+1)*nc),suffix=nc===4?'':`_${components.join('')}`;return {label:nc===4?'4-channel WAV':nc===2?`Pair ${index+1}: ${components.join('/')}`:`Mono: ${components[0]}`,name:`${stem}_${format}${suffix}.wav`,blob:new Blob(chunks,{type:'audio/wav'})};});
   downloads.push({label:'Analysis JSON',name:`${stem}_analysis.json`,blob:new Blob([JSON.stringify(analysis,null,2)+'\n'],{type:'application/json'})});return {analysis,downloads,preview_audio:new Blob(previewParts,{type:'audio/wav'})};
- }finally{e.rode_destroy(state);e.stats_destroy(stats);e.meter_destroy(meter);e.free(input);e.free(output);e.free(statsResult);e.free(meterResult);}
+ }finally{e.rode_destroy(state);e.stats_destroy(stats);e.meter_destroy(meter);e.free(input);e.free(output);e.free(statsResult);e.free(meterResult);e.free(frequencyResult);}
 }
 self.onmessage=async event=>{
  if(event.data.type!=='convert')return;const {jobid,recordings,settings}=event.data;

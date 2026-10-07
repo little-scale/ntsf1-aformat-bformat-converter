@@ -187,3 +187,14 @@ void rode_process(DSP*s,const float*input,float*output,int ambix){
  for(int c=0;c<4;c++){memmove(s->output[c],s->output[c]+h,h*sizeof(float));memset(s->output[c]+h,0,h*sizeof(float));}
 }
 void rode_destroy(DSP*s){if(!s)return;free(s->window);free(s->cosine);free(s->reverse);free(s->previous);free(s->temporal);free(s->oldenergy);free(s->newenergy);free(s->q);free(s->scratch);for(int c=0;c<4;c++){free(s->input[c]);free(s->output[c]);free(s->spectra[c]);}free(s);}
+
+/* Read-only spectral covariance for the energy sphere; never alters audio. */
+void rode_frequency_covariance(DSP*s,int rate,int ambix,double*out){
+ memset(out,0,8*16*sizeof(double));double top=fmin(20000.,rate*.5),range=log(top/20.);
+ for(int k=0;k<=s->n/2;k++){
+  double hz=(double)k*rate/s->n;int band=hz<=20.?0:(int)(log(hz/20.)/range*8.);if(band>7)band=7;
+  Cx v[4];for(int c=0;c<4;c++)v[c]=get(s->spectra[c],k,s->n);
+  double scale[4]={ambix?1.:1.4142135623730951,1.,1.,1.};double weight=(k==0||k==s->n/2)?1.:2.;
+  for(int a=0;a<4;a++)for(int b=0;b<4;b++)out[band*16+a*4+b]+=weight*scale[a]*scale[b]*((double)v[a].r*v[b].r+(double)v[a].i*v[b].i)/((double)s->n*s->n);
+ }
+}

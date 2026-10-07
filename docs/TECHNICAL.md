@@ -211,6 +211,14 @@ energy(n) ∝ aᵀ C a
 
 For current field rotation R, the display evaluates the original covariance at `Rᵀn`, allowing immediate updates without reconversion. A constant cardioid gain factor is omitted because brightness is normalized per window and mapped through a square root.
 
+### Frequency colour
+
+A read-only WASM export computes eight band covariance matrices directly from the converted B-format FFT spectra, after microphone orientation/W normalization and before inverse FFT. Bands are logarithmic from 20 Hz to min(20 kHz, Nyquist); DC and sub-20-Hz energy join the first band, and energy above 20 kHz joins the last. Cross-products use real parts of complex outer products, with weights 2 for interior bins and 1 for DC/Nyquist. They are accumulated into the same preview windows as the time-domain covariance. The STFT windows straddle nearby output samples, so this is a windowed frequency view rather than sample-exact instantaneous frequency.
+
+For each pixel, directional band energy comes from its cardioid covariance projection. Hue is its energy-weighted mean log frequency mapped from red (low) through yellow/green/cyan to blue/violet (high). Brightness follows total directional spectral energy, normalized independently per window. Saturation decreases with the standard deviation of log frequency: concentrated spectra are vivid, broadband spectra less saturated. This is a spectral centroid/spread description, not a claim that every pixel has one frequency. The method uses band centers, not individual-bin peak labels.
+
+The renderer aggregates zeroth, first and second frequency-moment covariance matrices, then evaluates those three quadratic forms per pixel. This avoids evaluating every band at every pixel. A 200×200 texture is scaled onto the sphere, retaining responsive playback. Covariances interpolate between time windows before colour calculation. Older previews without frequency metadata fall back to monochrome. No output audio is modified by this analysis; the reference-comparison error figures were rechecked and remained unchanged after adding it.
+
 The surface shows the front hemisphere; other directions rotate into view. Brightness does not compare absolute energy between windows. First-order patterns are broad and cannot precisely separate individual sources. Covariance precedes output gain/clamp and reflects the microphone configuration of its conversion.
 
 During headphone playback, the sphere follows the AudioContext playback clock and the selected headphone recording. The visualization updates every 100 ms and interpolates covariance matrices between stored windows. Pause freezes the current position, seeking updates both displays, and Stop or natural completion resets them. This interpolates visual energy data only and does not modify the audio or increase its spatial resolution.
@@ -260,6 +268,7 @@ Tests use Node.js with synthetic audio:
 | `layouts.cjs` | All three input/output layouts recombine to identical payloads |
 | `meter.cjs` | 997 Hz, −20 dBFS sine loudness/range/estimated peak at 44.1 and 48 kHz |
 | `zip.cjs` | WAV metadata, ZIP structure and exact stored payload |
+| `frequency_colour.cjs` | Directional hue, spectral saturation, silence, RGB bounds and FFT tone-band assignment |
 | `playback_sync.cjs` | Playback-clock synchronization, recording selection, fractional windows, pause/seek/resume/stop and bounds |
 
 Browser validation converted and monitored a two-second recording with external network connections disabled, then downloaded a yaw +90° binaural render. It contained 88,712 stereo frames at 44.1 kHz, including the 512-frame tail, finite samples, distinct ears and approximately −5.0 dBFS peak. Monitor level zero did not mute the export. Scalar results are in `binaural_validation.json`.

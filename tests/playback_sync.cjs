@@ -7,9 +7,9 @@ for(const key of ['yaw','pitch','roll','gain','audio-position','sphere-time'])el
 const node=()=>({gain:{value:1,setTargetAtTime(){},setValueAtTime(){}},connect(){},disconnect(){},start(){},stop(){}});
 class AudioContext{constructor(){this.currentTime=0;AudioContext.instance=this;}resume(){return Promise.resolve();}createGain(){return node();}createChannelSplitter(){return node();}createChannelMerger(){return node();}createWaveShaper(){return node();}createBufferSource(){return node();}createBuffer(ch,n,rate){return {duration:n/rate,length:n,sampleRate:rate,getChannelData:()=>new Float32Array(n)};}}
 let tick;const window={AudioContext};const ctx={window,document,Math,Number,Float32Array,Float64Array,Uint8ClampedArray,DataView,Blob,console,setInterval(fn){tick=fn;return 1;},clearInterval(){tick=null;},Omnitone:{createFOARenderer:()=>({input:node(),output:node(),initialize:()=>Promise.resolve()})}};vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('src/standalone/sphere.js','utf8'),ctx);vm.runInContext(fs.readFileSync('src/standalone/audio_preview.js','utf8'),ctx);
+vm.runInContext(fs.readFileSync('src/standalone/frequency_colour.js','utf8'),ctx);vm.runInContext(fs.readFileSync('src/standalone/sphere.js','utf8'),ctx);vm.runInContext(fs.readFileSync('src/standalone/audio_preview.js','utf8'),ctx);
 const covariance=Array.from({length:4},(_,i)=>Array.from({length:16},(_,k)=>k%5===0?i+1:0));
-const group={id:'a',name:'first',result:{preview_audio:new Blob([new ArrayBuffer(56+20*16)]),analysis:{frames:20,sample_rate:10,spatial_preview:{seconds_per_bin:.5,covariance}}}};
+const group={id:'a',name:'first',result:{preview_audio:new Blob([new ArrayBuffer(56+20*16)]),analysis:{frames:20,sample_rate:10,spatial_preview:{seconds_per_bin:.5,covariance,frequency_bands:Array.from({length:8},(_,i)=>20*1000**((i+.5)/8)),frequency_covariance:covariance.map((c,j)=>Array.from({length:128},(_,i)=>Math.floor(i/16)===j?c[i%16]:0))}}}};
 const second={...group,id:'b',name:'second'};
 (async()=>{
  window.SpatialSphere.refresh([group,second],false);window.BinauralPreview.refresh([group,second],false);

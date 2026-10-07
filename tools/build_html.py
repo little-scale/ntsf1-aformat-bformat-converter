@@ -11,6 +11,7 @@ html=html.replace('<script src="/app.js"></script>', '<script>const WORKER_SOURC
 html=html.replace('</body>', '<script>'+(ROOT/'omnitone.min.js').read_text().replace('</','<\\/')+'</script><script>'+(ROOT/'audio_preview.js').read_text()+'</script></body>')
 import html as html_module
 html=html.replace('<pre id="decoder-license"></pre>', '<pre id="decoder-license">'+html_module.escape((ROOT/'OMNITONE_LICENSE.txt').read_text())+'</pre>')
+html=html.replace('</body>', '<script>'+(ROOT/'frequency_colour.js').read_text()+'</script></body>')
 html=html.replace('</body>', '<script>'+(ROOT/'sphere.js').read_text()+'</script></body>')
 html=html.replace('Your audio stays on this computer.','All processing stays in your browser. No server or uploads.')
 html=html.replace('W-channel LUFS and true peak','W-channel LUFS and estimated true peak')

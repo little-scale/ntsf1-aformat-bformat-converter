@@ -1,6 +1,6 @@
 # NT-SF1 A-format to B-format Converter
 
-An offline, single-file browser converter for RØDE NT-SF1 recordings, with sound-field rotation, directional visualization and binaural headphone monitoring.
+An offline, single-file browser converter for RØDE NT-SF1 recordings, with sound-field rotation, frequency-coloured directional visualization and binaural headphone monitoring.
 
 ## Use
 
@@ -35,6 +35,7 @@ node tests/layouts.cjs
 node tests/meter.cjs
 node tests/zip.cjs
 node tests/playback_sync.cjs
+node tests/frequency_colour.cjs
 ```
 
 The checked-in WebAssembly binary makes HTML rebuilding possible without Emscripten. To rebuild the DSP too, run `sh tools/build_wasm.sh` with Emscripten installed, then rebuild the HTML.

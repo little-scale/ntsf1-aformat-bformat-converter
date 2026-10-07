@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-07 — Frequency-coloured energy sphere
+
+- Colour sphere pixels by energy-weighted log frequency from eight FFT bands.
+- Use brightness for directional energy and saturation for spectral concentration.
+- Add a low-to-high frequency colour key and frequency-analysis regression checks.
+- Keep the additional spectral analysis read-only; reference comparison remains unchanged.
+
 ## 2026-10-07 — Playback synchronization and workflow improvements
 
 - Synchronize sphere energy visuals to the headphone playback clock and selected recording.
