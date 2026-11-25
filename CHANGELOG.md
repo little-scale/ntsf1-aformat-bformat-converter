@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-26 — GitHub Pages hosting
+
+- Publish the standalone converter on GitHub Pages from the main branch.
+- Link the live converter from the README while retaining offline download instructions.
+
 ## 2026-10-07 — Frequency-coloured energy sphere
 
 - Colour sphere pixels by energy-weighted log frequency from eight FFT bands.

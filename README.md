@@ -4,6 +4,10 @@ An offline, single-file browser converter for RØDE NT-SF1 recordings, with soun
 
 ## Use
 
+[**Open the live converter**](https://little-scale.github.io/ntsf1-aformat-bformat-converter/)
+
+Audio is processed locally in your browser; recordings are not uploaded.
+
 Download [`index.html`](https://github.com/little-scale/ntsf1-aformat-bformat-converter/raw/refs/heads/main/index.html) and open it in a modern desktop browser. No server, installation or internet connection is required.
 
 1. Choose one 4-channel WAV, two stereo WAVs, or four mono WAVs per recording.
