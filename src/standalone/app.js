@@ -9,8 +9,11 @@ const db=v=>v===null||v===undefined?'−∞':Number(v).toFixed(1);
 const duration=s=>`${Math.floor(s/60)}:${(s%60).toFixed(1).padStart(4,'0')}`;
 function notify(text){$('#notice').textContent=text;$('#notice').hidden=!text;}
 for(let c=1;c<=4;c++){const select=$(`#capsule-${c}`);for(let v=1;v<=4;v++){const option=document.createElement('option');option.value=v;option.textContent=`Channel ${v}`;select.append(option);}select.value=c;}
-function config(){return {format:$('#format').value,gain_db:Number($('#gain').value),yaw:Number($('#yaw').value),pitch:Number($('#pitch').value),roll:Number($('#roll').value),orientation:$('#orientation').value,capsule_order:[1,2,3,4].map(c=>Number($(`#capsule-${c}`).value)),clamp:$('#clamp').checked,output_layout:$('#output-layout').value};}
+function splitting(){return $('#operation').value==='split';}
+function config(){if(splitting())return {operation:'split'};return {operation:'convert',format:$('#format').value,gain_db:Number($('#gain').value),yaw:Number($('#yaw').value),pitch:Number($('#pitch').value),roll:Number($('#roll').value),orientation:$('#orientation').value,capsule_order:[1,2,3,4].map(c=>Number($(`#capsule-${c}`).value)),clamp:$('#clamp').checked,output_layout:$('#output-layout').value};}
 function validation(g){
+ g.validationError=null;
+ if(splitting()&&g.mode!=='quad'){g.validationError='A-format split needs one 4-channel WAV per recording.';return 'error';}
  if(g.members.length!==layouts[g.mode].count)return 'waiting';
  if(g.members.some(m=>m.error))return 'error';
  if(g.members.some(m=>!m.meta))return 'uploading';
@@ -21,14 +24,17 @@ function validation(g){
 }
 function ready(g){return validation(g)==='ready';}
 function controls(){
- const busy=!!activeJob;
- document.querySelectorAll('.output-settings input,.output-settings select,.output-settings button,.output-rotation input,.output-rotation select,.output-rotation button,.microphone input,.microphone select,.microphone button,.modes button').forEach(e=>e.disabled=busy);
+ const busy=!!activeJob,split=splitting();
+ $('#operation').disabled=busy;
+ document.querySelectorAll('.microphone,.output-rotation,.headphone-preview,.monitoring').forEach(e=>e.hidden=split);$('.split-output').hidden=!split;
+ document.querySelectorAll('[data-mode]').forEach(e=>e.disabled=busy||(split&&e.dataset.mode!=='quad'));
+ document.querySelectorAll('.output-settings input,.output-settings select,.output-settings button,.output-rotation input,.output-rotation select,.output-rotation button,.microphone input,.microphone select,.microphone button').forEach(e=>e.disabled=busy);
  $('#drop-zone').setAttribute('aria-disabled',String(busy));$('#clear').disabled=busy||!groups.length;
  const n=groups.filter(ready).length;
- $('#convert').disabled=busy||uploads>0||n===0||!connected;$('#convert').textContent=busy?'Converting…':`Convert${n?' '+n+(n===1?' recording':' recordings'):''}`;
+ $('#convert').disabled=busy||uploads>0||n===0||!connected;$('#convert').textContent=busy?(split?'Splitting…':'Converting…'):`${split?'Split':'Convert'}${n?' '+n+(n===1?' recording':' recordings'):''}`;
  $('#cancel').hidden=!busy;$('#cancel').disabled=!busy;$('#count').textContent=groups.length;
  $('#download-all').hidden=!lastJob||activeJob!==null;
- if(lastJob)$('#download-all').href='#';window.SpatialSphere?.refresh(groups,busy);window.BinauralPreview?.refresh(groups,busy);
+ if(lastJob)$('#download-all').href='#';window.SpatialSphere?.refresh(groups,busy||split);window.BinauralPreview?.refresh(groups,busy||split);
 }
 function metrics(a){return `<div class="metrics"><div><span class="metric-label">Max sample peak</span><span class="metric-value">${db(a.max_sample_peak_dbfs)}</span><span class="metric-unit">dBFS</span></div><div><span class="metric-label">Component RMS</span><span class="metric-value">${db(a.combined_component_rms_dbfs)}</span><span class="metric-unit">dBFS</span></div><div><span class="metric-label">W mono loudness</span><span class="metric-value">${fixed(a.w_mono_loudness.integrated_lufs)}</span><span class="metric-unit">LUFS</span></div></div>`;}
 function analysisHTML(a,id){
@@ -76,7 +82,9 @@ $('#drop-zone').addEventListener('dragover',e=>{e.preventDefault();if(!activeJob
 $('#drop-zone').addEventListener('dragleave',()=>$('#drop-zone').classList.remove('dragging'));
 $('#drop-zone').addEventListener('drop',e=>{e.preventDefault();$('#drop-zone').classList.remove('dragging');addFiles(e.dataTransfer.files);});
 window.addEventListener('dragover',e=>e.preventDefault());window.addEventListener('drop',e=>e.preventDefault());
-document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.mode;document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));$('#layout-hint').textContent=layouts[mode].hint;}));
+function setLayout(value){mode=value;document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));$('#layout-hint').textContent=layouts[mode].hint;}
+document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>setLayout(button.dataset.mode)));
+$('#operation').addEventListener('change',()=>{if(splitting())setLayout('quad');notify('');render();});
 $('#output-layout').addEventListener('change',()=>{$('#output-layout-hint').textContent={quad:'All four B-format components in one file.',stereo:'Channel pairs 1–2 and 3–4. No stereo decoding.',mono:'One file per B-format component, labelled W, X, Y or Z.'}[$('#output-layout').value];});
 $('#rotation-reset').addEventListener('click',()=>['yaw','pitch','roll'].forEach(k=>$('#'+k).value='0'));
 $('#gain-reset').addEventListener('click',()=>$('#gain').value='0');
@@ -101,17 +109,17 @@ async function poll(){
   for(const item of job.items){const g=groups.find(g=>g.id===item.client_id);if(g)g.result=item;}
   if(['complete','canceled'].includes(job.status)){
    clearInterval(pollTimer);lastJob=job.completed?job.id:null;activeJob=null;
-   $('#batch-status').textContent=job.status==='canceled'?'Conversion canceled.':`${job.completed} complete${job.failed?', '+job.failed+' failed':''}.`;
+   $('#batch-status').textContent=job.status==='canceled'?'Processing canceled.':`${job.completed} complete${job.failed?', '+job.failed+' failed':''}.`;
   }
   render();
  }catch(e){clearInterval(pollTimer);activeJob=null;connected=false;notify('Browser conversion failed. Reload this HTML file to restart.');render();}
 }
 $('#convert').addEventListener('click',async()=>{
- const cfg=config();if(new Set(cfg.capsule_order).size!==4){notify('Assign each source channel exactly once in Capsule order.');return;}
- if(!Number.isFinite(cfg.gain_db)||cfg.gain_db< -60||cfg.gain_db>24){notify('Output level must be between -60 and +24 dB.');return;}
+ const cfg=config();if(!splitting()&&new Set(cfg.capsule_order).size!==4){notify('Assign each source channel exactly once in Capsule order.');return;}
+ if(!splitting()&&(!Number.isFinite(cfg.gain_db)||cfg.gain_db< -60||cfg.gain_db>24)){notify('Output level must be between -60 and +24 dB.');return;}
  const recordings=groups.filter(ready).map(g=>({id:g.id,name:g.name,files:g.members.map(m=>m.meta.id)}));
  if(!recordings.length)return;notify('');
- try{const job=await api('/api/jobs','POST',{recordings,settings:cfg});activeJob=job.id;lastJob=null;$('#batch-status').textContent='Converting in your browser…';for(const item of job.items){const g=groups.find(g=>g.id===item.client_id);if(g)g.result=item;}render();pollTimer=setInterval(poll,700);poll();}
+ try{const job=await api('/api/jobs','POST',{recordings,settings:cfg});activeJob=job.id;lastJob=null;$('#batch-status').textContent=splitting()?'Splitting in your browser…':'Converting in your browser…';for(const item of job.items){const g=groups.find(g=>g.id===item.client_id);if(g)g.result=item;}render();pollTimer=setInterval(poll,700);poll();}
  catch(e){notify(e.message);}
 });
 $('#cancel').addEventListener('click',async()=>{if(!activeJob)return;try{await api('/api/jobs/'+activeJob+'/cancel','POST',{});$('#batch-status').textContent='Canceling…';}catch(e){notify(e.message);}});
@@ -119,6 +127,6 @@ $('#cancel').addEventListener('click',async()=>{if(!activeJob)return;try{await a
 
 $('#download-all').addEventListener('click',async event=>{
  event.preventDefault();if(!lastJob)return;const link=$('#download-all');const old=link.textContent;link.textContent='Preparing ZIP…';
- try{const blob=await BrowserRuntime.zip(lastJob),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='converted_files.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+ try{const blob=await BrowserRuntime.zip(lastJob),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=splitting()?'aformat_stereo_pairs.zip':'converted_files.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
  catch(error){notify(error.message);}finally{link.textContent=old;}
 });

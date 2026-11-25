@@ -158,6 +158,14 @@ An orthogonal rotation preserves `X²+Y²+Z²` in exact arithmetic. Output value
 
 Gain is float32(10^(dB/20)), from −60 to +24 dB. Rotation precedes gain. Optional plugin-output limiting then clamps each component to [−1,+1]. It is a hard sample clamp, not a look-ahead or true-peak limiter. Rotation can change individual channel peaks while preserving total directional energy.
 
+## A-format split-only workflow
+
+The `split` operation accepts one four-channel WAV per recording and produces two stereo WAVs: original channels 1–2 and 3–4. It reads chunks of 65,536 frames and copies contiguous channel-pair byte ranges into output chunks. Samples are never decoded to floats or sent through the reconstructed DSP, microphone presets, capsule permutation, output rotation, gain, metering or clamp. This preserves all encoded sample bits, including float32 values outside ±1, signed zero, float64 precision and non-finite float bit patterns. The split path does not attempt to repair invalid audio values.
+
+Output retains the input rate, frame count, PCM/IEEE-float encoding and bit depth. For example, 32-bit float input remains 32-bit float output rather than being quantized to integer PCM. Both RIFF and RF64 inputs are supported; RF64 output is selected when a stereo result exceeds RIFF size limits. Extensible input subformats are written using canonical PCM/IEEE-float stereo headers. Ancillary BWF/iXML/timecode chunks and speaker masks are not copied, so the result is sample-byte-identical, not container-byte-identical, to the relevant source channels.
+
+The split workflow hides B-format processing controls and stops headphone playback. It generates no B-format analysis or binaural preview because its results remain raw A-format capsule signals. Per-pair downloads and the existing batch ZIP remain available. Normal conversion is the default operation; existing conversion settings are retained when switching modes.
+
 ## B-format files and batch ZIP
 
 Outputs are IEEE float32 WAVs with a `fact` chunk, at the input sample rate and exact frame count. Large files use RF64. Stereo layouts pair consecutive components: AmbiX W/Y and Z/X, FuMa W/X and Y/Z. Mono files use component names. Component pairs are not conventional stereo speaker decodes.
@@ -268,6 +276,8 @@ Tests use Node.js with synthetic audio:
 | `layouts.cjs` | All three input/output layouts recombine to identical payloads |
 | `meter.cjs` | 997 Hz, −20 dBFS sine loudness/range/estimated peak at 44.1 and 48 kHz |
 | `zip.cjs` | WAV metadata, ZIP structure and exact stored payload |
+| `split_workflow.cjs` | Operation switching, hidden DSP controls, preserved conversion settings and split-only job submission |
+| `aformat_split.cjs` | Exact pair bytes across PCM16/24/32 and float32/64, extensible/RF64 input, chunk boundaries, output headers, ZIP, invalid layouts and DSP bypass |
 | `frequency_colour.cjs` | Directional hue, spectral saturation, silence, RGB bounds and FFT tone-band assignment |
 | `playback_sync.cjs` | Playback-clock synchronization, recording selection, fractional windows, pause/seek/resume/stop and bounds |
 

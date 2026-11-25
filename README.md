@@ -17,6 +17,12 @@ Download [`index.html`](https://github.com/little-scale/ntsf1-aformat-bformat-co
 
 After converting, inspect directional energy on the sphere and use the headphone playback slider to move through the recording. Drag the sphere for yaw/pitch and the outer ring for roll, or enter angles numerically. Headphone playback follows these rotations live, while the sphere’s energy display follows playback and seeking. Convert again to update B-format downloads, or use **Export binaural stereo WAV** for a stereo headphone render of the current settings.
 
+## Split A-format without conversion
+
+Select **Operation → A-format → A-format split (2 × stereo)**, add a four-channel WAV and click **Split**. Download channels 1–2 and 3–4 individually or as a ZIP.
+
+Splitting preserves the source sample rate, frame count, encoding and bit depth—including **32-bit float input/output**—and copies the sample bytes unchanged. No A-to-B conversion, capsule reordering, rotation, gain or clipping is applied. PCM16/24/32 and float32/64 are supported. WAV headers are rebuilt; ancillary recording metadata is not copied.
+
 ## Features
 
 - Input and output layouts: 1 × 4 channels, 2 × stereo, or 4 × mono.
@@ -40,6 +46,8 @@ node tests/meter.cjs
 node tests/zip.cjs
 node tests/playback_sync.cjs
 node tests/frequency_colour.cjs
+node tests/aformat_split.cjs
+node tests/split_workflow.cjs
 ```
 
 The checked-in WebAssembly binary makes HTML rebuilding possible without Emscripten. To rebuild the DSP too, run `sh tools/build_wasm.sh` with Emscripten installed, then rebuild the HTML.

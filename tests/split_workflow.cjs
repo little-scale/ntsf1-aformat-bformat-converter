@@ -1,0 +1,23 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require('crypto');
+
+// Small DOM/event harness for the operation switch and its actual job payload.
+const elements=[],byId=new Map();
+function makeElement(attributes={}){const listeners={};const e={className:'',value:'',checked:false,disabled:false,hidden:false,dataset:{},classList:{add(){},remove(){}},textContent:'',innerHTML:'',setAttribute(name,value){this[name]=value;},append(){},addEventListener(name,fn){(listeners[name]??=[]).push(fn);},async emit(name,event={}){for(const fn of listeners[name]||[])await fn(event);},...attributes};elements.push(e);if(e.id)byId.set(e.id,e);return e;}
+const html=fs.readFileSync('src/browser/dist/index.html','utf8');for(const tag of html.matchAll(/<[^!\/][^>]*>/g)){const attrs=tag[0],id=attrs.match(/\bid="([^"]+)"/)?.[1],className=attrs.match(/\bclass="([^"]+)"/)?.[1]||'',mode=attrs.match(/\bdata-mode="([^"]+)"/)?.[1];if(id||className||mode)makeElement({id,className,value:attrs.match(/\bvalue="([^"]*)"/)?.[1]||'',hidden:/\bhidden\b/.test(attrs),dataset:mode?{mode}:{}});}
+function match(e,selector){if(selector.startsWith('#'))return e.id===selector.slice(1);if(selector==='[data-mode]')return !!e.dataset.mode;if(selector==='details[data-report]')return false;if(selector.includes(' '))return false;return e.className.split(' ').includes(selector.slice(1));}
+const document={querySelector:selector=>elements.find(e=>match(e,selector)),querySelectorAll:selector=>elements.filter(e=>selector.split(',').some(s=>match(e,s))),createElement:()=>makeElement({})};
+for(const [id,value] of Object.entries({operation:'convert',format:'ambix',orientation:'upright','output-layout':'quad',gain:'0',yaw:'0',pitch:'0',roll:'0'}))byId.get(id).value=value;
+const calls=[],previews=[];let poll;
+const ctx={document,window:{addEventListener(){},SpatialSphere:{refresh(){}},BinauralPreview:{refresh(groups,busy){previews.push(busy);}}},crypto:crypto.webcrypto,Number,String,Math,Set,console,setInterval(fn){poll=fn;return 1;},clearInterval(){poll=null;},BrowserRuntime:{async api(path,method,body){calls.push({path,method,body});if(path==='/api/config')return {token:'local'};if(method==='POST'&&path==='/api/jobs')return {id:'job',items:body.recordings.map(r=>({client_id:r.id,status:'queued'}))};return {status:'processing',items:[]};}}};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('src/standalone/app.js','utf8'),ctx);
+(async()=>{
+ await new Promise(resolve=>setImmediate(resolve));
+ // Nonzero/invalid B-format settings cannot leak into split processing.
+ vm.runInContext("setLayout('stereo');groups=[{id:'quad',name:'raw',mode:'quad',members:[{name:'raw.wav',meta:{id:'file',channels:4,frames:48000,sample_rate:48000,duration_seconds:1}}]}]",ctx);
+ byId.get('gain').value='NaN';byId.get('capsule-1').value='4';byId.get('operation').value='split';await byId.get('operation').emit('change');
+ assert.equal(vm.runInContext('mode',ctx),'quad');assert.equal(byId.get('convert').disabled,false);assert.equal(byId.get('convert').textContent,'Split 1 recording');assert.equal(document.querySelector('.microphone').hidden,true);assert.equal(document.querySelector('.output-rotation').hidden,true);assert.equal(document.querySelector('.headphone-preview').hidden,true);assert.equal(document.querySelector('.split-output').hidden,false);assert.equal(previews.at(-1),true);
+ assert(document.querySelectorAll('[data-mode]').filter(e=>e.dataset.mode!=='quad').every(e=>e.disabled));
+ await byId.get('convert').emit('click');const submitted=calls.find(c=>c.path==='/api/jobs'&&c.method==='POST');assert.deepEqual(JSON.parse(JSON.stringify(submitted.body.settings)),{operation:'split'});assert.equal(submitted.body.recordings[0].files[0],'file');assert.equal(byId.get('batch-status').textContent,'Splitting in your browser…');assert.equal(byId.get('operation').disabled,true);
+ vm.runInContext('activeJob=null',ctx);byId.get('operation').value='convert';await byId.get('operation').emit('change');assert.equal(document.querySelector('.microphone').hidden,false);assert.equal(document.querySelector('.output-rotation').hidden,false);assert.equal(document.querySelector('.headphone-preview').hidden,false);assert.equal(document.querySelector('.split-output').hidden,true);assert(document.querySelectorAll('[data-mode]').every(e=>!e.disabled));assert.equal(byId.get('gain').value,'NaN');
+ console.log('Split workflow passed: mode selection, preserved settings, hidden DSP controls, preview stop, batch input and split-only job payload');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -11,7 +11,7 @@ const BrowserRuntime=(()=>{
     const job=jobs.get(data.jobid);if(!job)return;
     const item=job.items.find(i=>i.file_id===data.file_id);
     if(data.type==='progress'&&item){item.status='processing';item.progress=data.progress;item.stage=data.stage;}
-    if(data.type==='complete'&&item){item.status='complete';item.progress=1;item.stage='Complete';item.analysis=data.analysis;item.preview_audio=data.preview_audio;item.downloads=data.downloads.map(d=>({...d,url:URL.createObjectURL(d.blob)}));}
+    if(data.type==='complete'&&item){item.status='complete';item.progress=1;item.stage='Complete';item.operation=data.operation||'convert';item.analysis=data.analysis;item.preview_audio=data.preview_audio;item.downloads=data.downloads.map(d=>({...d,url:URL.createObjectURL(d.blob)}));}
     if(data.type==='error'&&item){item.status='error';item.stage='Failed';item.error=data.error;}
     if(data.type==='fatal'){for(const i of job.items)if(['queued','processing'].includes(i.status)){i.status='error';i.error=data.error;}job.status='complete';}
     if(['finished','fatal'].includes(data.type)){job.status='complete';job.completed=job.items.filter(i=>i.status==='complete').length;job.failed=job.items.filter(i=>i.status==='error').length;}
@@ -40,6 +40,7 @@ const BrowserRuntime=(()=>{
   const meta={id:crypto.randomUUID(),name:file.name,bytes:file.size,sample_rate:rate,bits,frames:data.size/align,duration_seconds:data.size/align/rate,channels,kind,align,data_offset:data.offset,file};files.set(meta.id,meta);return meta;
  }
  function validate(settings){
+  const operation=settings.operation||'convert';if(!['convert','split'].includes(operation))throw Error('Unknown operation');if(operation==='split')return;
   for(const k of ['yaw','pitch','roll'])if(settings[k]!==undefined&&(!Number.isFinite(settings[k])||Math.abs(settings[k])>180))throw Error('Rotation angles must be between -180 and +180 degrees');
   if(!['ambix','fuma'].includes(settings.format))throw Error('Unknown output format');
   if(!['quad','stereo','mono'].includes(settings.output_layout))throw Error('Unknown output layout');
@@ -54,6 +55,7 @@ const BrowserRuntime=(()=>{
    await workerReady;validate(body.settings);
    const recordings=body.recordings.map(r=>{
     const sources=r.files.map(id=>files.get(id));if(sources.some(s=>!s))throw Error('An input is missing');
+    if(body.settings.operation==='split'&&(sources.length!==1||sources[0].channels!==4))throw Error('A-format split requires one 4-channel WAV per recording');
     if(!['4','2,2','1,1,1,1'].includes(sources.map(s=>s.channels).join(',')))throw Error('Choose matching input layouts');
     if(sources.some(s=>s.frames!==sources[0].frames||s.sample_rate!==sources[0].sample_rate))throw Error('Split inputs must have identical sample rates and lengths');
     return {...r,file_id:crypto.randomUUID(),client_id:r.id,sources};

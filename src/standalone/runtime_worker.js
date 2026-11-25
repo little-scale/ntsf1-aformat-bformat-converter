@@ -8,14 +8,15 @@ const coreReady=(async()=>{
 const orientationFlags={'upright':0,'upside-down':2,'end-fire':1,'end-fire-upside-down':3};
 function finite(v){return Number.isFinite(v)?v:null;}
 function db(v){return v>0?20*Math.log10(v):null;}
-function makeHeader(channels,rate,frames){
- const size=frames*channels*4,rf64=size+48>0xffffffff,b=new ArrayBuffer(rf64?92:56),v=new DataView(b);let p=0;
+function makeHeader(channels,rate,frames,kind=3,bits=32){
+ const size=frames*channels*(bits/8),base=kind===3?56:44,rf64=size+base-8>0xffffffff,length=base+(rf64?36:0),b=new ArrayBuffer(length),v=new DataView(b);let p=0;
  const text=s=>{for(const c of s)v.setUint8(p++,c.charCodeAt(0));};const u32=n=>{v.setUint32(p,n,true);p+=4;};const u16=n=>{v.setUint16(p,n,true);p+=2;};const u64=n=>{v.setBigUint64(p,BigInt(n),true);p+=8;};
- text(rf64?'RF64':'RIFF');u32(rf64?0xffffffff:size+48);text('WAVE');
- if(rf64){text('ds64');u32(28);u64(size+84);u64(size);u64(frames);u32(0);}
- text('fmt ');u32(16);u16(3);u16(channels);u32(rate);u32(rate*channels*4);u16(channels*4);u16(32);
- text('fact');u32(4);u32(Math.min(frames,0xffffffff));text('data');u32(rf64?0xffffffff:size);return b;
+ text(rf64?'RF64':'RIFF');u32(rf64?0xffffffff:size+length-8);text('WAVE');
+ if(rf64){text('ds64');u32(28);u64(size+length-8);u64(size);u64(frames);u32(0);}
+ text('fmt ');u32(16);u16(kind);u16(channels);u32(rate);u32(rate*channels*(bits/8));u16(channels*(bits/8));u16(bits);
+ if(kind===3){text('fact');u32(4);u32(Math.min(frames,0xffffffff));}text('data');u32(rf64?0xffffffff:size);return b;
 }
+
 class Reader{
  constructor(meta){this.meta=meta;this.start=-1;this.count=0;this.view=null;}
  async cache(frame,count){
@@ -58,6 +59,19 @@ function rotateAudio(audio,frames,ambix,m){
  }
 }
 function safeStem(s){return String(s).replace(/\.wave?$/i,'').replace(/[^\w .()\-]/g,'_').slice(0,140)||'recording';}
+async function splitRecording(recording,jobid){
+ if(recording.sources.length!==1||recording.sources[0].channels!==4)throw Error('A-format split requires one 4-channel WAV per recording');
+ const meta=recording.sources[0],pairBytes=meta.bits/8*2,parts=Array.from({length:2},()=>[makeHeader(2,meta.sample_rate,meta.frames,meta.kind,meta.bits)]);
+ for(let pos=0;pos<meta.frames;pos+=65536){
+  const count=Math.min(65536,meta.frames-pos),start=meta.data_offset+pos*meta.align,input=new Uint8Array(await meta.file.slice(start,start+count*meta.align).arrayBuffer());
+  if(input.byteLength!==count*meta.align)throw Error('Truncated input audio');
+  // Copy encoded sample bytes; no float decoding, gain, reordering or DSP.
+  for(let pair=0;pair<2;pair++){const chunk=new Uint8Array(count*pairBytes);for(let k=0;k<count;k++){const offset=k*meta.align+pair*pairBytes;chunk.set(input.subarray(offset,offset+pairBytes),k*pairBytes);}parts[pair].push(chunk.buffer);}
+  postMessage({type:'progress',jobid,file_id:recording.file_id,progress:(pos+count)/meta.frames,stage:'Splitting'});
+ }
+ const stem=safeStem(recording.name);
+ return {operation:'split',downloads:parts.map((chunks,pair)=>({label:`A-format: channels ${pair*2+1}–${pair*2+2}`,name:`${stem}_A_ch${pair*2+1}-${pair*2+2}.wav`,blob:new Blob(chunks,{type:'audio/wav'})}))};
+}
 async function convertRecording(e,recording,settings,jobid){
  const sources=recording.sources,meta=sources[0],rate=meta.sample_rate,frames=meta.frames,format=settings.format,ambix=format==='ambix';
  if(sources.some(s=>s.sample_rate!==rate||s.frames!==frames))throw Error('Split inputs must have identical sample rates and lengths');
@@ -115,10 +129,10 @@ async function convertRecording(e,recording,settings,jobid){
 self.onmessage=async event=>{
  if(event.data.type!=='convert')return;const {jobid,recordings,settings}=event.data;
  try{
-  const e=await coreReady;
+  const split=settings.operation==='split',e=split?null:await coreReady;
   for(const recording of recordings){
-   postMessage({type:'progress',jobid,file_id:recording.file_id,progress:0,stage:'Converting'});
-   try{const result=await convertRecording(e,recording,settings,jobid);postMessage({type:'complete',jobid,file_id:recording.file_id,...result});}
+   postMessage({type:'progress',jobid,file_id:recording.file_id,progress:0,stage:split?'Splitting':'Converting'});
+   try{const result=split?await splitRecording(recording,jobid):await convertRecording(e,recording,settings,jobid);postMessage({type:'complete',jobid,file_id:recording.file_id,...result});}
    catch(error){postMessage({type:'error',jobid,file_id:recording.file_id,error:error.message||String(error)});}
   }
   postMessage({type:'finished',jobid});

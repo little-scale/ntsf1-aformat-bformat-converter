@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-26 — A-format stereo splitting
+
+- Add an A-format split-only operation for four-channel WAVs, exporting original channels 1–2 and 3–4 as stereo files.
+- Preserve source encoding, sample rate, frame count and sample bytes, including 32-bit float input/output and float headroom.
+- Bypass conversion, channel remapping, rotation, gain and clipping in split mode.
+- Add lossless split tests for integer/float encodings, RIFF/RF64 and extensible input.
+
 ## 2026-11-26 — GitHub Pages hosting
 
 - Publish the standalone converter on GitHub Pages from the main branch.
